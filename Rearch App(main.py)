@@ -1,0 +1,135 @@
+import os
+import openai
+from kivy.app import App
+from kivy.uix.label import Label
+from kivy.uix.button import Button
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.image import Image
+from dotenv import find_dotenv, load_dotenv
+import requests
+
+
+# Load environment variables
+load_dotenv(find_dotenv())
+
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
+class MyApp(App):
+    def build(self):
+        # Create a FloatLayout as the root layout
+        root = FloatLayout()
+
+        # Create a vertical layout for the main interface
+        layout = BoxLayout(
+            orientation="vertical",
+            padding=10,
+            size_hint=(1, 0.9),
+            pos_hint={"top": 1}
+        )
+
+        # Create a TextInput for the question
+        self.question_input = TextInput(
+            hint_text="Enter your question here",
+            multiline=False
+        )
+        self.question_input.bind(on_text_validate=self.answer_question)
+
+        # Create a label to display the answer
+        self.label = Label(
+            text="Press Enter to get an answer",
+            halign="center",
+            valign="middle"
+        )
+        self.label.bind(width=self.update_text_width)
+
+        # Create a button to get the answer
+        button = Button(text="Get Answer")
+        button.bind(on_press=self.answer_question)
+
+        # Create an Image widget to display the image
+        self.image = Image(size_hint=(1, 0.5))
+
+        # Add the TextInput, label, button, and image to the layout
+        layout.add_widget(self.question_input)
+        layout.add_widget(self.label)
+        layout.add_widget(button)
+        layout.add_widget(self.image)
+
+        # Create an AnchorLayout for the popup
+        self.popup_layout = AnchorLayout(
+            anchor_x="right",
+            anchor_y="top",
+            size_hint=(0.3, 0.1),
+            pos_hint={"bottom": 0.9}
+        )
+        self.popup_button = Button(
+            text="Source of Answer",
+            halign="center",
+            valign="middle",
+            background_color=(1, 0, 0, 1),
+            color=(1, 1, 1, 1),
+            text_size=self.popup_layout.size,
+            padding_x=5,
+            padding_y=5
+        )
+        self.popup_layout.add_widget(self.popup_button)
+
+        # Add the main interface and the popup to the root layout
+        root.add_widget(layout)
+        root.add_widget(self.popup_layout)
+
+        return root
+
+    def update_text_width(self, instance, value):
+        instance.text_size = (value, None)
+
+    def answer_question(self, instance):
+        # Get the question from the TextInput
+        question = self.question_input.text
+
+        # Call OpenAI API to get the answer
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=question,
+            temperature=0.6,
+            max_tokens=100,
+            n=1,
+            stop=None,
+        )
+
+        # Extract the answer from the API response
+        answer = response.choices[0].text.strip()
+
+        # Update the label with the answer
+        self.label.text = f"Answer: {answer}"
+
+        # Make a request to the Pexels API to fetch a random image
+        access_key = "dWnokJFc7KWwEYjKw5BuptbBfoSEsCw21dgkA7JyYkzXfVJ1b5IlJm12"  # Replace with your Pexels API access key
+        base_url = "https://api.pexels.com/v1"
+        headers = {"Authorization": access_key}
+
+        # Get the search query from the TextInput
+        search_query = self.question_input.text
+
+        # Include the search query in the API request
+        url = f"{base_url}/search?query={search_query}&per_page=1"
+        response = requests.get(url, headers=headers).json()
+
+        # Extract the image URL from the response
+        photos = response.get("photos", [])
+        if photos:
+            image_url = photos[0].get("src", {}).get("large2x")
+            # Update the image source
+            self.image.source = image_url
+
+        # Clear the question input
+        self.question_input.text = ""
+
+
+if __name__ == "__main__":
+    MyApp().run()
